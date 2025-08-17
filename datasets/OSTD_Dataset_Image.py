@@ -3,17 +3,18 @@
 import argparse
 import os
 import math
+from datetime import datetime
 import cv2
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib import colors
 from matplotlib.patches import Patch
 from matplotlib.dates import DateFormatter
 from collections import namedtuple
 from PIL import Image
+from scipy.io import loadmat
 
 # DL library imports
 import torch
@@ -63,7 +64,7 @@ def rgb_to_2D_label(label):
     return label_seg
 
 
-class ISPRS_Dataset(BaseDataset):
+class OSTD_Dataset_Image(BaseDataset):
     """Read images, apply augmentation and preprocessing transformations.
     
     Args:
@@ -81,10 +82,11 @@ class ISPRS_Dataset(BaseDataset):
             self, 
             opt, 
             split_type,
-            augmentation=None, 
+            augmentation=False, 
     ):
-        images_dir = os.path.join(opt.data_path, split_type, "images256")
-        masks_dir = os.path.join(opt.data_path, split_type, "masks256")
+        images_dir = os.path.join(opt.data_path, split_type, "image128")
+        # images_dir = os.path.join(opt.data_path, split_type, "sar128")
+        masks_dir = os.path.join(opt.data_path, split_type, "mask128")
         self.im_ids = sorted(os.listdir(images_dir), key=self.sort_key)
         self.images_fps = [os.path.join(images_dir, image_id) for image_id in self.im_ids]
         self.mask_ids = sorted(os.listdir(masks_dir), key=self.sort_key)
@@ -95,39 +97,32 @@ class ISPRS_Dataset(BaseDataset):
         self.opt = opt
 
     def __getitem__(self, i):
-        image = cv2.imread(self.images_fps[i])
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB).transpose(2, 0, 1)
-        mask = cv2.imread(self.masks_fps[i])
-        mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB) # cv2 reads image as BGR, change to RGB
-
-        # 在这里把三维变成了一维！！！ 0 - 5
-        if self.opt.num_classes == 6:
-            mask = rgb_to_2D_label(mask)
-        mask = mask[:, :, 0]
-        
-        
+        image = loadmat(self.images_fps[i])['img'].transpose(2, 0, 1)
+        # image = loadmat(self.images_fps[i])['sar'].transpose(2, 0, 1)
+        mask = loadmat(self.masks_fps[i])['map'][:, :, 0].astype(np.int64)
         image = torch.from_numpy(image)
-        mask = torch.from_numpy(mask).long()
-        mask = mask.unsqueeze(0)
-        
+        mask = torch.from_numpy(mask)
+
         if self.augmentation:
             image, mask = self.is_aug(image, mask)
 
-        image = self.norm(image)
+        # print("image shape", image.shape, "mask shape", mask.shape)
 
-        return image, mask, self.img_ids[i]
+        # image = self.norm(image)
+
+        return image.float(), mask, self.img_ids[i]
 
     def norm(self, image):
-        _, _, bands = image.shape
+        bands, _, _ = image.shape
 
         # 归一化
         for i in range(bands):
-            max = torch.max(image[:, :, i])
-            min = torch.min(image[:, :, i])
+            max = torch.max(image[i, :, :])
+            min = torch.min(image[i, :, :])
             if max == 0 and min == 0:
                 # print(" ############################## skip ############################## ")
                 continue
-            image[:,:,i] = (image[:,:,i] - min) / (max-min)
+            image[i, :, :] = (image[i, :, :] - image[i, :, :].min()) / (image[i, :, :].max()-image[i, :, :].min())
 
         return image
 
@@ -148,14 +143,15 @@ class ISPRS_Dataset(BaseDataset):
                 #                 fill=2,
                 #                 interpolation=InterpolationMode.BILINEAR)
                 ])
+        mask = mask.unsqueeze(0)
 
         stacked = torch.cat((images, mask), dim=0)
         stacked = aug(stacked)
-        img_transformed = stacked[:-1, :, :].float()
-        mask_transformed = stacked[-1, :, :].long()
+        img_transformed = stacked[:-1, :, :]
+        mask_transformed = stacked[-1, :, :]
 
         return img_transformed, mask_transformed
-    
+
     def get_img_ids(self, img_dir, mask_dir):
         img_filename_list = sorted(os.listdir(img_dir), key=self.sort_key)
         mask_filename_list = sorted(os.listdir(mask_dir), key=self.sort_key)
@@ -178,27 +174,32 @@ class ISPRS_Dataset(BaseDataset):
     # 自定义排序键
     def sort_key(self, filename):
         # 将文件名前缀（数字部分）提取出来并转换为整数
-        return int(filename.split('.')[0][20:])
-
+        return int(filename.split('.')[0][5:])
+    
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--data_path', type=str, default="/home/icclab/Documents/lqw/DatasetMMF/Vaihingen", \
+    parser.add_argument('--data_path', type=str, default="/home/icclab/Documents/lqw/DatasetMMF/OSTD", \
                         help='path were the input data is stored')
-    parser.add_argument('--num_classes', type=int, default=6, help='number of semantic classes of the dataset')
+    parser.add_argument('--num_classes', type=int, default=2, help='number of semantic classes of the dataset')
 
     opt = parser.parse_args()
 
-    train_dataset = ISPRS_Dataset(opt, split_type='train', augmentation=False)
-    val_dataset = ISPRS_Dataset(opt, split_type='val', augmentation=False)
-    test_dataset = ISPRS_Dataset(opt, split_type='test', augmentation=False)
+    train_dataset = OSTD_Dataset_Lidar(opt, split_type='train', augmentation=False)
+    val_dataset = OSTD_Dataset_Lidar(opt, split_type='val', augmentation=False)
+    test_dataset = OSTD_Dataset_Lidar(opt, split_type='test', augmentation=False)
 
     train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=0, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=0, drop_last=True)
     test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False, num_workers=0)
     
-    for image, label, _ in train_loader:
-        print("image", image.shape, "label", label.shape)
+    for (ti, tm, _), (vi, vm, _), (tei, tem, _) in zip(train_dataset, val_dataset, test_dataset):
+        # 3, 256, 256 | 256, 256
+        # 3, 512, 512 | 512, 512
+        print("ti", ti.shape, "tm", tm.shape, "vi", vi.shape, "vm", vm.shape, "tei", tei.shape, "tem", tem.shape)
+        # print(np.unique(tm), np.unique(vm), np.unique(tem))
+        # print(torch.max(tm), torch.max(vm), torch.max(tem))
+        # print(torch.min(tm), torch.min(vm), torch.min(tem))
         break
 
 

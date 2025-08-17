@@ -3,11 +3,10 @@
 import os
 import json
 import argparse
-import numpy as np
+import pandas as pd
 from datetime import datetime
 from thop import profile, clever_format
 
-# from utils import load_datasets, augmentation, make_loader
 import torch
 import torch.optim as optim
 from torch.optim.lr_scheduler import OneCycleLR
@@ -15,91 +14,59 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
 from models.CustomNet import CustomNet
-from datasets.OSTD_Dataset import OSTD_Dataset
+from datasets.OSTD_Dataset_SAR import OSTD_Dataset_SAR
+from datasets.OSTD_Dataset_Image import OSTD_Dataset_Image
+from datasets.ISPRS_Dataset import ISPRS_Dataset
 from losses import *
 
-from tools.utils import train_model, evaluate_model     # train validate function
+from option import opts
+from tools.utils import plot_training_results    # train validate function
+from tools import trainer
 import segmentation_models_pytorch as smp
 import ssl
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--name', type=str, default=None, help='name of the model as it should be saved')
-parser.add_argument('--data_path', type=str, default="/home/icclab/Documents/lqw/DatasetMMF/OSTD", \
-                    help='path were the input data is stored')
-parser.add_argument('--patch_size', type=int, default=128, help='size of the image patches the model should be trained on')
-parser.add_argument('--random_split', type=bool, default=False, \
-                    help='if true, no separate valid folders are expected but train and validation in one folder, that are split randomly')
-parser.add_argument('--normalize', type=bool, default=True)
-parser.add_argument('--norm_dataset', choices=['potsdam', 'potsdam_irrg', 'floodnet', 'vaihingen', 'imagenet', None], default=None)
-parser.add_argument('--model', choices=['unet', 'segformer', 'segformer-b5'], default='segformer', 
-                    help="the model architecture that should be trained")
-parser.add_argument('--epochs', type=int, default=100, help='epochs the model should be trained')
 
-parser.add_argument('--train_batch', type=int, default=16, help='batch size for training data')
-parser.add_argument('--val_batch', type=int, default=2, help='batch size for validation data')  # 我把 batch size 改的好大
-parser.add_argument('--train_worker', type=int, default=6, help='number of workers for training data')
-parser.add_argument('--val_worker', type=int, default=4, help='number of workers for validation data')
-parser.add_argument('--stop_threshold', type=int, default=-1, \
-                    help='number of epochs without improvement in validation loss after that the training should be stopped')
+def main(opt):
 
-parser.add_argument('--loss_function', type=str, default='OHEMLoss', 
-                    choices=['dice', 'jaccard', 'focal', 'cross-entropy', 'weighted-CE'],
-                    help='loss function that should be used for training the model')
-parser.add_argument('--lr', type=float, default=3e-3, help='maximum learning rate')
-parser.add_argument('--lr_scheduler', type=bool, default=True, help='wether to use the implemented learning rate scheduler or not')
-parser.add_argument('--use_aux_loss', type=bool, default=False, help='wether to use the use_aux_loss or not')
-parser.add_argument('--num_classes', type=int, default=2, help='number of semantic classes of the dataset')
-parser.add_argument('--dataset', choices=["vaihingen", 'potsdam', 'floodnet', 'dwh'], default='dwh', \
-                    help='Dataset the model is applied to and trained on; argument mainly used for visualization purposes')
-parser.add_argument('--encoder', type=str, default="resnet18", help='')
-parser.add_argument('--encoder_weights', type=str, default="imagenet", help='')
-parser.add_argument('--activation', type=str, default="softmax2d", \
-                    help='could be None for logits or softmax2d for multiclass segmentation | sigmoid')
-parser.add_argument('--result_dir', type=str, default='/home/icclab/Documents/lqw/Multimodal_Segmentation/singleModalitySemanticSegmentation/output', 
-                    help='path to directory where the results should be stored')
-parser.add_argument('--device', type=str, default="cuda:0" if torch.cuda.is_available() else "cpu", help='')
+    if opt.data_name == "OSTD_Image":
+        train_dataset = OSTD_Dataset_Image(opt, split_type='train', augmentation=True)
+        val_dataset = OSTD_Dataset_Image(opt, split_type='val', augmentation=False)
+        test_dataset = OSTD_Dataset_Image(opt, split_type='test', augmentation=False)
 
-opt = parser.parse_args()
+    elif opt.data_name == "OSTD_SAR":
+        train_dataset = OSTD_Dataset_SAR(opt, split_type='train', augmentation=True)
+        val_dataset = OSTD_Dataset_SAR(opt, split_type='val', augmentation=False)
+        test_dataset = OSTD_Dataset_SAR(opt, split_type='test', augmentation=False)
 
+    elif opt.data_name == "vaihingen":
+        train_dataset = ISPRS_Dataset(opt, split_type='train', augmentation=True)
+        val_dataset = ISPRS_Dataset(opt, split_type='val', augmentation=False)
+        test_dataset = ISPRS_Dataset(opt, split_type='test', augmentation=False)
 
-def main():
-
-    train_dataset = OSTD_Dataset(opt, split_type='train', augmentation=True)
-    val_dataset = OSTD_Dataset(opt, split_type='val', augmentation=False)
-    test_dataset = OSTD_Dataset(opt, split_type='test', augmentation=False)
-
-    train_loader = DataLoader(train_dataset, batch_size=opt.train_batch, shuffle=True, num_workers=opt.train_worker, drop_last=True)
-    val_loader = DataLoader(val_dataset, batch_size=opt.val_batch, shuffle=False, num_workers=opt.val_worker, drop_last=True)
-    test_loader = DataLoader(test_dataset, batch_size=opt.val_batch, shuffle=False, num_workers=opt.val_worker)
-
-
-#     # for (ti, tm, _), (vi, vm, _), (tei, tem, _) in zip(train_loader, val_loader, test_loader):
-#     #     # 3, 256, 256 | 256, 256
-#     #     # 3, 512, 512 | 512, 512
-#     #     print("ti", ti.shape, "tm", tm.shape, "vi", vi.shape, "vm", vm.shape, "tei", tei.shape, "tem", tem.shape)
-#     #     print(np.unique(tm), np.unique(vm), np.unique(tem))
-#     #     print(torch.max(tm), torch.max(vm), torch.max(tem))
-#     #     print(torch.min(tm), torch.min(vm), torch.min(tem))
-#     #     break
-
+    train_loader = DataLoader(train_dataset, batch_size=opt.train_batch, shuffle=True, 
+                              num_workers=opt.train_worker, drop_last=True)
+    val_loader = DataLoader(val_dataset, batch_size=opt.val_batch, shuffle=False, 
+                            num_workers=opt.val_worker, drop_last=True)
+    test_loader = DataLoader(test_dataset, batch_size=opt.val_batch, shuffle=False, 
+                             num_workers=opt.val_worker, drop_last=False)
     # create model
-    model = CustomNet(opt).to(opt.device)
+    model = CustomNet(opt, bands=193).to(opt.device)
     
 
     # set loss function
     # reference : https://smp.readthedocs.io/en/latest/losses.html
     if opt.loss_function == 'jaccard':
         criterion = smp.losses.JaccardLoss('multiclass', log_loss = False, smooth=0.0)
-    if opt.loss_function == 'dice':
+    elif opt.loss_function == 'dice':
         criterion = smp.losses.DiceLoss('multiclass', log_loss = False, smooth=0.0)
-    if opt.loss_function == 'focal':
+    elif opt.loss_function == 'focal':
         criterion = smp.losses.FocalLoss('multiclass')
-    if opt.loss_function == 'cross-entropy':
+    elif opt.loss_function == 'cross-entropy':
         criterion = torch.nn.CrossEntropyLoss()
-    if opt.loss_function == 'weighted-CE':
+    elif opt.loss_function == 'weighted-CE':
         class_count = torch.zeros(opt.num_classes)
         for i in range(len(train_dataset)):
             class_count += torch.flatten(train_dataset[i][1]).bincount(minlength=opt.num_classes)
@@ -107,20 +74,20 @@ def main():
             weights = (weights / weights.sum()).to(opt.device)
         criterion = torch.nn.CrossEntropyLoss(weight=weights)
     # ignore_index Label that indicates ignored pixels (does not contribute to loss)
-    if opt.loss_function == 'UnetFormerLoss':  # (都用这个没有关系)
+    elif opt.loss_function == 'UnetFormerLoss':  # (都用这个没有关系)
         # 这个损失有 ignore index 也就是在最外层补充的类别，但是专门为 长度为 2 的输出设置了辅助损失。所以用这个损失的batch size 不能是 2
         criterion = UnetFormerLoss(ignore_index=opt.num_classes)
-    if opt.loss_function == 'UnetFormerLossMamba':  # (都用这个没有关系)
+    elif opt.loss_function == 'UnetFormerLossMamba':  # (都用这个没有关系)
         # 这个来源于 mamba 库
         criterion = UnetFormerLoss_mamba(ignore_index=opt.num_classes)
         opt.use_aux_loss = True
-    if opt.loss_function == 'JointLoss':
+    elif opt.loss_function == 'JointLoss':
         # 这个损失有 ignore index 也就是在最外层补充的类别，但是专门为 长度为 2 的输出设置了辅助损失。所以用这个损失的batch size 不能是 2
         criterion = JointLoss(SoftCrossEntropyLoss(smooth_factor=0.05, ignore_index=opt.num_classes),
                         DiceLoss(smooth=0.05, ignore_index=opt.num_classes), 1.0, 1.0)
-    if opt.loss_function == 'OHEMLoss':
+    elif opt.loss_function == 'OHEMLoss':
         criterion = OHEM_CELoss(thresh=0.7, ignore_index=opt.num_classes)
-    if opt.loss_function == 'abcLoss':
+    elif opt.loss_function == 'abcLoss':
         # criterion = functools.partial(multi_loss2)
         criterion = ABCLoss()
 
@@ -148,11 +115,13 @@ def main():
 #     # print('# Model Params: {}'.format(params))
 
 
-    _ = train_model(opt, model, criterion, optimizer, train_loader, val_loader)
-
+    results = trainer.train_model(opt, model, criterion, optimizer, train_loader, val_loader)
+    results = pd.DataFrame(results)
+    plot_training_results(results, opt, savefig_path=True)
 
 
 if __name__ == '__main__':
+    opt = opts.get_options()
 
     # create folder for output if not exists
     opt.name = datetime.now().strftime("%m%d-%H%M-") + \
@@ -171,15 +140,19 @@ if __name__ == '__main__':
     with open(opt.result_dir + '/args.json', 'w') as fid:
         json.dump(opt.__dict__, fid, indent=2)
 
-    if opt.dataset == 'dwh':
+    if opt.data_name == 'OSTD_Image':
         opt.class_name = ['Water', 'oil']
-    if opt.dataset == 'potsdam' or opt.dataset == 'vaihingen':
+        opt.bands = 193
+    elif opt.data_name == 'OSTD_SAR':
+        opt.class_name = ['Water', 'oil']
+        opt.bands = 3
+    elif opt.data_name == 'potsdam' or opt.data_name == 'vaihingen':
         opt.class_name = ['Impervious', 'Building', 'Vegetation', 'Tree', 'Car', 'Clutter']
-    if opt.dataset == 'floodnet':
+    elif opt.data_name == 'floodnet':
         opt.class_name = ['Background', 'Building-flooded', 'Building-non-flooded', 'Road-flooded', \
                    'Road-non-flooded', 'Water', 'Tree', 'Vehicle', 'Pool', 'Grass']
     
-    main()
+    main(opt)
 
 
 

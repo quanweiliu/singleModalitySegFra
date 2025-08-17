@@ -34,99 +34,75 @@ from .config import get_config
 # from vision_mamba import MambaUnet, MambaSwin, MambaRes, Mambamamba
 # from config import get_config
 
-from types import SimpleNamespace
-args = {
-    'root_path': '../data/ACDC',
-    'exp': 'ACDC/Fully_Supervised',
-    'model': 'VIM',
-    'num_classes': 4,
-    'cfg': '/home/leo/Semantic_Segmentation/CM-UNet/cmunet/config/vaihingen/vmamba_tiny.yaml',
-    'opts': None,  # This is a list and will be None by default
-    'zip': False,  # False by default, true if --zip is used
-    'cache_mode': 'part',  # Default is 'part'
-    'resume': None,  # No default provided, so it's set to None
-    'accumulation_steps': None,  # No default provided, so it's set to None
-    'use_checkpoint': False,  # False by default, true if --use-checkpoint is used
-    'amp_opt_level': 'O1',
-    'tag': None,  # No default provided, so it's set to None
-    'eval': False,  # False by default, true if --eval is used
-    'throughput': False,  # False by default, true if --throughput is used
-    'max_iterations': 10000,
-    'batch_size': 24,
-    'deterministic': 1,
-    'base_lr': 0.01,
-    'patch_size': 4,
-    'seed': 1337,
-    'labeled_num': 140
-}
-args = SimpleNamespace(**args)
 
 class ConvBN(nn.Sequential):
-    def __init__(self, in_channels, out_channels, kernel_size=3, dilation=1, stride=1, norm_layer=nn.BatchNorm2d, bias=False):
+    def __init__(self, in_channels, out_channels, kernel_size=3, dilation=1, stride=1, bias=False):
         super(ConvBN, self).__init__(
             nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, bias=bias,
                     dilation=dilation, stride=stride, padding=((stride - 1) + dilation * (kernel_size - 1)) // 2),
-            norm_layer(out_channels))
+            nn.BatchNorm2d(out_channels))
 
 
 class CustomNet(nn.Module):
-    def __init__(self, opt):
+    def __init__(self, opt, bands=3):
         super(CustomNet, self).__init__()
-        self.pre_conv = ConvBN(193, 3, kernel_size=3)
-        # self.pre_conv = ConvBN(224, 3, kernel_size=3)
+
+        self.bands = bands
+        self.pre_conv = ConvBN(bands, 3, kernel_size=3)
         
         # create model
         if opt.model == 'unet':
             self.model = UNet(in_channels=3, out_channels=opt.num_classes, layer_channels=[64, 128, 256, 512]).to(opt.device)
-        if opt.model == 'segformer':
+        elif opt.model == 'segformer':
             self.model = segformer(in_channels=3, num_classes=opt.num_classes).to(opt.device)
-        if opt.model == 'segformer-b5':
+        elif opt.model == 'segformer-b5':
             self.model = segformer(in_channels=3, num_classes=opt.num_classes, depths=(3, 6, 40, 3)).to(opt.device)
-        if opt.model == 'unetformer':
+        elif opt.model == 'unetformer':
             self.model = UNetFormer(num_classes=opt.num_classes, window_size=4).to(opt.device)
-        if opt.model == 'A2FPN':
+        elif opt.model == 'A2FPN':
             self.model = A2FPN(class_num=opt.num_classes).to(opt.device)
-        if opt.model == 'ABCNet':
+        elif opt.model == 'ABCNet':
             self.model = ABCNet(n_classes=opt.num_classes).to(opt.device)
-        if opt.model == 'BANet':
+        elif opt.model == 'BANet':
             self.model = BANet(num_classes=opt.num_classes, weight_path="/home/leo/Semantic_Segmentation/CNNvsTransformerHSI/pretrain_weights/rest_lite.pth").to(opt.device)
-        if opt.model == 'DCSwin':
+        elif opt.model == 'DCSwin':
             self.model = dcswin_tiny(num_classes=opt.num_classes, weight_path="/home/leo/Semantic_Segmentation/CNNvsTransformerHSI/pretrain_weights/stseg_tiny.pth").to(opt.device)
             # self.model = dcswin_small(num_classes=opt.num_classes, weight_path="/home/leo/Semantic_Segmentation/CNNvsTransformerHSI/pretrain_weights/stseg_small.pth").to(opt.device)
             # self.model = dcswin_base(num_classes=opt.num_classes, weight_path="/home/leo/Semantic_Segmentation/CNNvsTransformerHSI/pretrain_weights/stseg_base.pth").to(opt.device)
-        if opt.model == 'FTUNetFormer':
+        elif opt.model == 'FTUNetFormer':
             # self.model = FTUNetFormer(num_classes=opt.num_classes, window_size=4).to(opt.device)
             # net = ft_unetformer(num_classes=1, weight_path="/home/leo/Semantic_Segmentation/CNNvsTransformerHSI/pretrain_weights/stseg_base.pth").to(opt.device)
             self.model = ft_unetformer_hsi(num_classes=opt.num_classes, weight_path="/home/leo/Semantic_Segmentation/CNNvsTransformerHSI/pretrain_weights/stseg_base.pth").to(opt.device)
-        if opt.model == 'MANet':
+        elif opt.model == 'MANet':
             self.model = MANet(num_classes=opt.num_classes).to(opt.device)
-        if opt.model == 'AMSUnet':
+        elif opt.model == 'AMSUnet':
             self.model = AMSUnet(in_channels=3, num_classes=opt.num_classes, base_c=32).to(opt.device)
 
-        if opt.model == "ss-Unet":
-            # print("encoder_weights", opt.encoder_weights)
+        elif opt.model == "ss-Unet":
             self.model = smp.Unet(encoder_name=opt.encoder, encoder_weights=opt.encoder_weights, classes=opt.num_classes, activation=opt.activation).to(opt.device)
-        if opt.model == "ss-UnetPlusPlus":
+        elif opt.model == "ss-UnetPlusPlus":
             self.model = smp.UnetPlusPlus(encoder_name=opt.encoder, encoder_weights=opt.encoder_weights, classes=opt.num_classes, activation=opt.activation).to(opt.device)
-        if opt.model == "ss-FPN":
+        elif opt.model == "ss-FPN":
             self.model = smp.FPN(encoder_name=opt.encoder, encoder_weights=opt.encoder_weights, classes=opt.num_classes, activation=opt.activation).to(opt.device)
-        if opt.model == "ss-PSPNet":
+        elif opt.model == "ss-PSPNet":
             self.model = smp.PSPNet(encoder_name=opt.encoder, encoder_weights=opt.encoder_weights, classes=opt.num_classes, activation=opt.activation).to(opt.device)
-        if opt.model == "ss-DeepLabV3":
+        elif opt.model == "ss-DeepLabV3":
             self.model = smp.DeepLabV3(encoder_name=opt.encoder, encoder_weights=opt.encoder_weights, classes=opt.num_classes, activation=opt.activation).to(opt.device)
-        if opt.model == "ss-DeepLabV3Plus":
+        elif opt.model == "ss-DeepLabV3Plus":
             self.model = smp.DeepLabV3Plus(encoder_name=opt.encoder, encoder_weights=opt.encoder_weights, classes=opt.num_classes, activation=opt.activation).to(opt.device)
-        if opt.model == "ss-Linknet":
+        elif opt.model == "ss-Linknet":
             self.model = smp.Linknet(encoder_name=opt.encoder, encoder_weights=opt.encoder_weights, classes=opt.num_classes, activation=opt.activation).to(opt.device)
-        if opt.model == "ss-MAnet":
+        elif opt.model == "ss-MAnet":
             self.model = smp.MAnet(encoder_name=opt.encoder, encoder_weights=opt.encoder_weights, classes=opt.num_classes, activation=opt.activation).to(opt.device)
-        if opt.model == "ss-PAN":
+        elif opt.model == "ss-PAN":
             self.model = smp.PAN(encoder_name=opt.encoder, encoder_weights=opt.encoder_weights, classes=opt.num_classes, activation=opt.activation).to(opt.device)
+        else:
+            raise ValueError(f"Unknown model: {opt.model}")
 
     def forward(self, x):
-        # print("x", x.shape)
 
-        x = self.pre_conv(x)
+        if self.bands > 3:
+            x = self.pre_conv(x)
         return self.model(x)
     
 if __name__ == '__main__':

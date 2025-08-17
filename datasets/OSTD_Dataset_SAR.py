@@ -64,7 +64,7 @@ def rgb_to_2D_label(label):
     return label_seg
 
 
-class OSTD_Dataset(BaseDataset):
+class OSTD_Dataset_SAR(BaseDataset):
     """Read images, apply augmentation and preprocessing transformations.
     
     Args:
@@ -84,8 +84,8 @@ class OSTD_Dataset(BaseDataset):
             split_type,
             augmentation=False, 
     ):
-        images_dir = os.path.join(opt.data_path, split_type, "image128")
-        # images_dir = os.path.join(opt.data_path, split_type, "sar128")
+        # images_dir = os.path.join(opt.data_path, split_type, "image128")
+        images_dir = os.path.join(opt.data_path, split_type, "sar128")
         masks_dir = os.path.join(opt.data_path, split_type, "mask128")
         self.im_ids = sorted(os.listdir(images_dir), key=self.sort_key)
         self.images_fps = [os.path.join(images_dir, image_id) for image_id in self.im_ids]
@@ -97,8 +97,8 @@ class OSTD_Dataset(BaseDataset):
         self.opt = opt
 
     def __getitem__(self, i):
-        image = loadmat(self.images_fps[i])['img'].transpose(2, 0, 1)
-        # image = loadmat(self.images_fps[i])['sar'].transpose(2, 0, 1)
+        # image = loadmat(self.images_fps[i])['img'].transpose(2, 0, 1)
+        image = loadmat(self.images_fps[i])['sar'].transpose(2, 0, 1)
         mask = loadmat(self.masks_fps[i])['map'][:, :, 0].astype(np.int64)
         image = torch.from_numpy(image)
         mask = torch.from_numpy(mask)
@@ -185,9 +185,9 @@ if __name__ == "__main__":
 
     opt = parser.parse_args()
 
-    train_dataset = OSTD_Dataset(opt, split_type='train', augmentation=False)
-    val_dataset = OSTD_Dataset(opt, split_type='val', augmentation=False)
-    test_dataset = OSTD_Dataset(opt, split_type='test', augmentation=False)
+    train_dataset = OSTD_Dataset_SAR(opt, split_type='train', augmentation=False)
+    val_dataset = OSTD_Dataset_SAR(opt, split_type='val', augmentation=False)
+    test_dataset = OSTD_Dataset_SAR(opt, split_type='test', augmentation=False)
 
     train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=0, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=0, drop_last=True)

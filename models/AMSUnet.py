@@ -216,16 +216,6 @@ class AMSUnet(nn.Module):
         x = self.up4(x, x1)
         logits = self.out_conv(x)
         return logits
-        return {"out": logits}
-
-
-# if __name__ == '__main__':
-#     
-#     input = torch.randn(1, 3, 480, 480).to('cpu')
-
-#     # flops, params = profile(model, inputs=(input,))
-#     # print('FLOPs = ' + str(flops / 1000 ** 3) + 'G')
-#     # print('Params = ' + str(params / 1000 ** 2) + 'M')
 
 
 if __name__ == "__main__":
