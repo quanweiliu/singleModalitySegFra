@@ -63,7 +63,7 @@ def evaluate_model(
                 pred = predicted_labels2[i].cpu().numpy()
                 mask_name = image_ids[i]
                 # print("mask_name", mask_name)   
-                results.append((pred, opt.output_fig_path, True))
+                # results.append((pred, opt.output_fig_path, True))
 
                 # print("pred", pred.shape)
                 # pred = pred.reshape((256, 256))
@@ -74,7 +74,7 @@ def evaluate_model(
     # print(total_loss)
     evaluation_loss = total_loss / len(dataloader)
     # evaluation_metric = metric_object.compute()
-    return evaluation_loss, metrics_val, results
+    return evaluation_loss, metrics_val
 
 
 ###################################
@@ -84,10 +84,11 @@ def evaluate_model(
 def train_model(
         opt,
         model : torch.nn.Module, 
-        criterion, 
-        optimizer : torch.optim, 
         dataloader_train : torch.utils.data.DataLoader, 
         dataloader_valid : torch.utils.data.DataLoader, 
+        criterion, 
+        optimizer : torch.optim, 
+        lr_scheduler : torch.optim.lr_scheduler,
         ):
     """Train and validate a model
 
@@ -166,13 +167,7 @@ def train_model(
         for inputs, labels, _ in tqdm(dataloader_train, total=len_train_loader):
             inputs = inputs.to(opt.device)
             labels = labels.to(opt.device) 
-            # print("train inputs", inputs.shape)   # 1, 3, 256, 256
-            # print("train labels", labels.shape)   # 1, 256, 256
-            # print("train labels", type(labels))   # 1, 256, 256
-            # Forward pass
             y_preds = model(inputs)
-            # print("train y_preds", y_preds[0].dtype, labels.dtype)  
-            # print("train y_preds", y_preds.shape, labels.shape)  
             loss = criterion(y_preds, labels)
             train_loss += loss.item()
             loss.backward()
@@ -185,8 +180,9 @@ def train_model(
         duration_training = datetime.now() - starttime
 
         # VALIDATION LOOP
-        validation_loss, metrics_val, _  = evaluate_model(opt, model, dataloader_valid, criterion)
-
+        validation_loss, metrics_val = evaluate_model(opt, model, dataloader_valid, criterion)
+        kappa = np.nanmean(metrics_val.Intersection_over_Union())
+        lr_scheduler.step(kappa)
 
         print(f'Epoch: {epoch+1}, trainLoss:{train_loss:6.5f}, valLoss:{validation_loss:6.5f}, trainingDuration {duration_training}')
         if opt.result_dir:
@@ -214,8 +210,6 @@ def train_model(
                        })
         
         # if validation loss has decreased, save model and reset variable
-        kappa = np.nanmean(metrics_val.Intersection_over_Union())
-        
         if kappa >= max_kappa:
         # if validation_loss <= min_val_loss:
             max_kappa = kappa
@@ -235,7 +229,6 @@ def train_model(
                 # stop training if validation_loss did not improve for early_stop_threshold epochs
                 print(f"Early stopped training at epoch {epoch} because loss did not improve for {opt.stop_threshold} epochs")
                 break  # terminate the training loop
-
 
     torch.save({
         'epoch': epoch,

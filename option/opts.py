@@ -10,7 +10,8 @@ def get_options():
 	parser.add_argument('--data_path', type=str, default="/home/icclab/Documents/lqw/DatasetMMF/OSTD", \
 						help='path were the input data is stored')
 	parser.add_argument('--patch_size', type=int, default=128, help='size of the image patches the model should be trained on')
-	parser.add_argument('--model', choices=['unet', 'segformer', 'segformer-b5', 'AMSUnet', "MANet"], 
+	parser.add_argument('--model', choices=['unet', 'segformer', 'segformer-b5', 'AMSUnet', "MANet",
+										 'A2FPN', 'unetformer', 'BANet', 'DCSwin', 'ABCNet'], 
 						default='unet', help="the model architecture that should be trained")
 	
 	parser.add_argument('--epochs', type=int, default=10, help='epochs the model should be trained')
@@ -31,7 +32,7 @@ def get_options():
 	parser.add_argument('--encoder', type=str, default="resnet18", help='')
 	parser.add_argument('--activation', type=str, default="softmax2d", \
 						help='could be None for logits or softmax2d for multiclass segmentation | sigmoid')
-	parser.add_argument('--result_dir', type=str, default='/home/icclab/Documents/lqw/Multimodal_Segmentation/singleModalitySemanticSegmentation/output', 
+	parser.add_argument('--result_dir', type=str, default='/home/icclab/Documents/lqw/Multimodal_Segmentation/singleModalitySegFra/output', 
 						help='path to directory where the results should be stored')
 	parser.add_argument('--device', type=str, default="cuda:0" if torch.cuda.is_available() else "cpu", help='')
 

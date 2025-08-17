@@ -28,34 +28,28 @@ import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
 
-
 def main(opt):
 
     if opt.data_name == "OSTD_Image":
         train_dataset = OSTD_Dataset_Image(opt, split_type='train', augmentation=True)
         val_dataset = OSTD_Dataset_Image(opt, split_type='val', augmentation=False)
-        test_dataset = OSTD_Dataset_Image(opt, split_type='test', augmentation=False)
 
     elif opt.data_name == "OSTD_SAR":
         train_dataset = OSTD_Dataset_SAR(opt, split_type='train', augmentation=True)
         val_dataset = OSTD_Dataset_SAR(opt, split_type='val', augmentation=False)
-        test_dataset = OSTD_Dataset_SAR(opt, split_type='test', augmentation=False)
 
     elif opt.data_name == "vaihingen":
         train_dataset = ISPRS_Dataset(opt, split_type='train', augmentation=True)
         val_dataset = ISPRS_Dataset(opt, split_type='val', augmentation=False)
-        test_dataset = ISPRS_Dataset(opt, split_type='test', augmentation=False)
 
     train_loader = DataLoader(train_dataset, batch_size=opt.train_batch, shuffle=True, 
                               num_workers=opt.train_worker, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=opt.val_batch, shuffle=False, 
                             num_workers=opt.val_worker, drop_last=True)
-    test_loader = DataLoader(test_dataset, batch_size=opt.val_batch, shuffle=False, 
-                             num_workers=opt.val_worker, drop_last=False)
+    
     # create model
     model = CustomNet(opt, bands=193).to(opt.device)
     
-
     # set loss function
     # reference : https://smp.readthedocs.io/en/latest/losses.html
     if opt.loss_function == 'jaccard':
@@ -115,7 +109,7 @@ def main(opt):
 #     # print('# Model Params: {}'.format(params))
 
 
-    results = trainer.train_model(opt, model, criterion, optimizer, train_loader, val_loader)
+    results = trainer.train_model(opt, model, train_loader, val_loader, criterion, optimizer, lr_scheduler)
     results = pd.DataFrame(results)
     plot_training_results(results, opt, savefig_path=True)
 
@@ -153,7 +147,6 @@ if __name__ == '__main__':
                    'Road-non-flooded', 'Water', 'Tree', 'Vehicle', 'Pool', 'Grass']
     
     main(opt)
-
 
 
 # 这里测试不同的数据（193， 224）和损失函数（UnetFormerLoss， OHEMLoss）
@@ -194,8 +187,6 @@ if __name__ == '__main__':
 # python train.py --model ss-DeepLabV3 --encoder efficientnet-b0 --loss_function OHEMLoss --output_path /home/leo/Semantic_Segmentation/CNNvsTransformerHSI/weights_Backbone
 # python train.py --model ss-DeepLabV3Plus --encoder efficientnet-b0 --loss_function OHEMLoss --output_path /home/leo/Semantic_Segmentation/CNNvsTransformerHSI/weights_Backbone
 # python train.py --model ss-Linknet --encoder efficientnet-b0 --loss_function OHEMLoss --output_path /home/leo/Semantic_Segmentation/CNNvsTransformerHSI/weights_Backbone
-
-
 
 
 # python train.py --model unetformer --encoder o --loss_function UnetFormerLoss --output_path /home/leo/Semantic_Segmentation/CNNvsTransformerHSI/weights_UFloss
