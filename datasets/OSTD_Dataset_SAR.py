@@ -88,16 +88,17 @@ class OSTD_Dataset_SAR(BaseDataset):
         return image.float(), mask, self.img_ids[i]
 
     def norm(self, image):
-        bands, _, _ = image.shape
+        # bands, _, _ = image.shape
 
-        # 归一化
-        for i in range(bands):
-            max = torch.max(image[i, :, :])
-            min = torch.min(image[i, :, :])
-            if max == 0 and min == 0:
-                # print(" ############################## skip ############################## ")
-                continue
-            image[i, :, :] = (image[i, :, :] - image[i, :, :].min()) / (image[i, :, :].max()-image[i, :, :].min())
+        # # 归一化
+        # for i in range(bands):
+        #     max = torch.max(image[i, :, :])
+        #     min = torch.min(image[i, :, :])
+        #     if max == 0 and min == 0:
+        #         # print(" ############################## skip ############################## ")
+        #         continue
+        #     image[i, :, :] = (image[i, :, :] - image[i, :, :].min()) / (image[i, :, :].max()-image[i, :, :].min())
+        image = (image - image.min()) / (image.max()-image.min())
 
         return image
 

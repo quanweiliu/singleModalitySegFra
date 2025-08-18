@@ -87,7 +87,7 @@ class Evaluator(object):
         return tp, fp, tn, fn
 
     def Pixel_Accuracy_Class(self):
-        #         TP                                  TP+FP
+        #         TP          TP+FP
         Acc = np.diag(self.confusion_matrix) / (self.confusion_matrix.sum(axis=0) + self.eps)
         return Acc
     

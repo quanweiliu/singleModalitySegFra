@@ -155,7 +155,7 @@ def label2rgb(mask):
 
 def img_writer(inp):
     (mask,  mask_id, rgb) = inp
-    print("mask", mask.shape)
+    # print("mask", mask.shape)
     if rgb:
         mask_name_tif = mask_id + '.png'
         # print("mask_png 1", mask_png.shape)
@@ -233,16 +233,15 @@ diff_legend = [
     Patch(facecolor='#c80000', label='False'), 
 ]
 
-def visualize_predictions(model : torch.nn.Module,
+def visualize_predictions(opt,
+                          model : torch.nn.Module,
                           dataSet : Dataset,
                           axes,
-                          device :torch.device,
                           numTestSamples : int,
                           # id_to_color : np.ndarray = train_id_to_color, 
                           seed : int = None, 
                           norm_dataset = 'own', 
                           # rgb = True, 
-                          classes=None,
                           model_label=""   # just a name
                          ):
     """Function visualizes predictions of input model on samples from the provided dataset.
@@ -262,22 +261,16 @@ def visualize_predictions(model : torch.nn.Module,
             FloodNet datasets with 6 and 10 classes respectively
         model_label (String) : text that should be added to the figure title
     """
-    model.to(device=device)
     model.eval()
 
     rgcmap = colors.ListedColormap(['green','red'])
     np.random.seed(seed)
 
     # predictions on random samples
-    # print(f"Candiditure visualizing samples of {len(dataSet)}")
     testSamples = np.random.choice(len(dataSet), numTestSamples).tolist()
-    # print(testSamples)
     # _, axes = plt.subplots(numTestSamples, 3, figsize=(3*6, numTestSamples * 4))
     
-    # legend_elements 这个只记录了 label 信息，提供了标注信息
-
-    # print("classes", classes)
-    id_to_color, legend_elements = train_id_to_color(classes)
+    id_to_color, legend_elements = train_id_to_color(opt.class_name)
     for handle in legend_elements:
         if handle.get_label() == 'Impervious':
             handle.set_edgecolor("gray")
@@ -290,18 +283,17 @@ def visualize_predictions(model : torch.nn.Module,
         inputImage, gt, _ = dataSet[sampleID]
         print(inputImage.shape, gt.shape)
         # print(dataSet[sampleID]['img'].shape, dataSet[sampleID]['gt_semantic_seg'].shape)
-        # 224, 128, 128 / 128, 128
-        # inputImage, gt = dataSet[sampleID], dataSet[sampleID]
 
         # input rgb image   
-        inputImage = inputImage.to(device)
+        inputImage = inputImage.to(opt.device)
 
         # 为什么这里要用 inverse_transform？因为绘图的时候不要用归一化的数据！！！
         if norm_dataset: 
             inv_norm = inverse_transform(norm_dataset)
             landscape = inv_norm(inputImage).permute(1, 2, 0)[:, :, 16:19].cpu().detach().numpy()
         else: 
-            landscape = inputImage.permute(1, 2, 0)[:, :, 16:19].cpu().detach().numpy()
+            # landscape = inputImage.permute(1, 2, 0)[:, :, 16:19].cpu().detach().numpy()
+            landscape = inputImage.permute(1, 2, 0).cpu().detach().numpy()
         # print(landscape.shape)
             
         axes[i, 0].imshow(landscape)
@@ -309,7 +301,6 @@ def visualize_predictions(model : torch.nn.Module,
 
         # groundtruth label image
         label_class = gt.cpu().detach().numpy()
-        # print(label_class)
         axes[i, 1].imshow(id_to_color[label_class])
         axes[i, 1].set_title("Groundtruth Label")
 
@@ -326,7 +317,6 @@ def visualize_predictions(model : torch.nn.Module,
         axes[i, 3].imshow(id_to_rg[diff*1]) #, cmap = rgcmap) # make int to map 0 and 1 to cmap, otherwise a 
         axes[i, 3].legend(handles=diff_legend)
         axes[i, 3].set_title("Correctness " + model_label)
-        # print(diff * 1)
         # issue (solved?): if the whole image is predicted wrong, 
         # it is visualized green (probably because imshow simply takes first color from cmap?)
     for ax in axes.reshape(-1): 

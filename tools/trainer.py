@@ -42,21 +42,14 @@ def evaluate_model(
         for inputs, labels, image_ids in tqdm(dataloader, total=len(dataloader)):
             inputs = inputs.to(opt.device)
             labels = labels.to(opt.device)      
-            # print("val inputs", inputs.shape)   # [8, 193, 128, 128]
-            # print("val labels", labels.shape)   # [8, 128, 128]     
             y_preds = model(inputs)
-            # print("val y_preds", y_preds.shape)   # 2, 6, 256, 256
-
-            # calculate loss
-            # print("test", y_preds.dtype, labels.dtype)   # 2, 128 ,128
+            # print("test", y_preds.shape, labels.shape)   # 2, 128 ,128
             loss = criterion(y_preds, labels)
             total_loss += loss.item()
 
             predicted_labels2 = nn.Softmax(dim=1)(y_preds)
             # print("predicted_labels2 1", predicted_labels2.shape)   # torch.Size([8, 128, 128]) 
             predicted_labels2 = predicted_labels2.argmax(dim=1)
-            # print("predicted_labels2 2", predicted_labels2.shape)   # torch.Size([2, 128]) 
-            # output_path = r'C:\Users\jc962911\Project\Semantic_Segmentation\CNNvsTransformerHSI\fig_results'
             for i in range(y_preds.shape[0]):
                 # print("image_ids", image_ids)
                 metrics_val.add_batch(labels[i].cpu().numpy(), predicted_labels2[i].cpu().numpy())
@@ -70,10 +63,7 @@ def evaluate_model(
                 # cv2.imwrite(os.path.join(opt.output_fig_path, str(mask_name) + '.png'), id_to_color[pred])
                 index += 1
             
-    # print(len(dataloader))
-    # print(total_loss)
     evaluation_loss = total_loss / len(dataloader)
-    # evaluation_metric = metric_object.compute()
     return evaluation_loss, metrics_val
 
 
@@ -168,6 +158,7 @@ def train_model(
             inputs = inputs.to(opt.device)
             labels = labels.to(opt.device) 
             y_preds = model(inputs)
+
             loss = criterion(y_preds, labels)
             train_loss += loss.item()
             loss.backward()

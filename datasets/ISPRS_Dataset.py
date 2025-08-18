@@ -3,11 +3,11 @@
 import argparse
 import os
 import math
+from datetime import datetime
 import cv2
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from datetime import datetime
 import matplotlib.pyplot as plt
 from matplotlib import colors
 from matplotlib.patches import Patch
@@ -114,21 +114,14 @@ class ISPRS_Dataset(BaseDataset):
             image, mask = self.is_aug(image, mask)
 
         image = self.norm(image)
+        mask = mask.squeeze(0)  # Remove the channel dimension
 
         return image, mask, self.img_ids[i]
 
     def norm(self, image):
-        _, _, bands = image.shape
-
-        # 归一化
-        for i in range(bands):
-            max = torch.max(image[:, :, i])
-            min = torch.min(image[:, :, i])
-            if max == 0 and min == 0:
-                # print(" ############################## skip ############################## ")
-                continue
-            image[:,:,i] = (image[:,:,i] - min) / (max-min)
-
+        image = (image - image.min()) / (image.max()-image.min())
+        image = transforms.Normalize(mean=[0.4731, 0.3206, 0.3182], 
+                                         std=[0.1970, 0.1306, 0.1276])(image)
         return image
 
     def is_aug(self, images, mask):
@@ -139,7 +132,7 @@ class ISPRS_Dataset(BaseDataset):
                 v2.RandomVerticalFlip(p=0.5),
                 # v2.ElasticTransform(fill=2),
                 # v2.RandomRotation(15, fill=2, interpolation=InterpolationMode.BILINEAR),
-                # v2.RandomRotation(15),
+                v2.RandomRotation(15),
                 # v2.RandomErasing(0.5, scale=(0.02,0.2)),
                 # v2.RandomAffine(degrees=180,           # 随机旋转的角度范围 (-180, 180)
                 #                 translate=(0.1, 0.1),  # 随机平移的范围（水平和垂直方向，按比例）
@@ -151,11 +144,11 @@ class ISPRS_Dataset(BaseDataset):
 
         stacked = torch.cat((images, mask), dim=0)
         stacked = aug(stacked)
-        img_transformed = stacked[:-1, :, :].float()
-        mask_transformed = stacked[-1, :, :].long()
+        img_transformed = stacked[:-1, :, :]
+        mask_transformed = stacked[-1, :, :]
 
         return img_transformed, mask_transformed
-    
+
     def get_img_ids(self, img_dir, mask_dir):
         img_filename_list = sorted(os.listdir(img_dir), key=self.sort_key)
         mask_filename_list = sorted(os.listdir(mask_dir), key=self.sort_key)
@@ -198,7 +191,16 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False, num_workers=0)
     
     for image, label, _ in train_loader:
-        print("image", image.shape, "label", label.shape)
+        print("image", image.shape, image.dtype, image.max(), image.min())
+        print("label", label.shape, label.dtype, label.max(), label.min())
         break
 
+    for image, label, _ in val_loader:
+        print("image", image.shape, image.dtype, image.max(), image.min())
+        print("label", label.shape, label.dtype, label.max(), label.min())
+        break
 
+    for image, label, _ in test_loader:
+        print("image", image.shape, image.dtype, image.max(), image.min())
+        print("label", label.shape, label.dtype, label.max(), label.min())
+        break

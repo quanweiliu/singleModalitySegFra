@@ -60,9 +60,6 @@ class OHEM_CELoss(nn.Module):
 
     def forward(self, logits, labels):
         n_min = labels[labels != self.ignore_index].numel() // 16
-
-        # print("logits", logits.shape, "labels", labels.shape)
-        # [16, 2, 128, 128] / torch.Size([16, 128, 128])
         loss = self.criteria(logits, labels).view(-1)
         loss_hard = loss[loss > self.thresh]
         # numel returns the number of elements in a tensor

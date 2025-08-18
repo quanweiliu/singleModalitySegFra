@@ -52,8 +52,18 @@ def main(opt):
                             num_workers=opt.val_worker, prefetch_factor=4, 
                             pin_memory=True, drop_last=True)
     
+    for image, label, _ in train_dataset:
+        print("image", image.shape, image.dtype, image.max(), image.min())
+        print("label", label.shape, label.dtype, label.max(), label.min())
+        break
+
+    for image, label, _ in val_dataset:
+        print("image", image.shape, image.dtype, image.max(), image.min())
+        print("label", label.shape, label.dtype, label.max(), label.min())
+        break
+
     # create model
-    model = CustomNet(opt, bands=193).to(opt.device)
+    model = CustomNet(opt, bands=opt.bands).to(opt.device)
     
     # set loss function
     # reference : https://smp.readthedocs.io/en/latest/losses.html
@@ -147,6 +157,7 @@ if __name__ == '__main__':
         opt.bands = 3
     elif opt.data_name == 'potsdam' or opt.data_name == 'vaihingen':
         opt.class_name = ['Impervious', 'Building', 'Vegetation', 'Tree', 'Car', 'Clutter']
+        opt.bands = 3
     elif opt.data_name == 'floodnet':
         opt.class_name = ['Background', 'Building-flooded', 'Building-non-flooded', 'Road-flooded', \
                    'Road-non-flooded', 'Water', 'Tree', 'Vehicle', 'Pool', 'Grass']
