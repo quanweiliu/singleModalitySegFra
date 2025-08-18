@@ -14,8 +14,8 @@ def get_options():
 										 'A2FPN', 'unetformer', 'BANet', 'DCSwin', 'ABCNet'], 
 						default='unet', help="the model architecture that should be trained")
 	
-	parser.add_argument('--epochs', type=int, default=10, help='epochs the model should be trained')
-	parser.add_argument('--train_batch', type=int, default=16, help='batch size for training data')
+	parser.add_argument('--epochs', type=int, default=100, help='epochs the model should be trained')
+	parser.add_argument('--train_batch', type=int, default=32, help='batch size for training data')
 	parser.add_argument('--val_batch', type=int, default=2, help='batch size for validation data')  # 我把 batch size 改的好大
 	parser.add_argument('--train_worker', type=int, default=6, help='number of workers for training data')
 	parser.add_argument('--val_worker', type=int, default=4, help='number of workers for validation data')

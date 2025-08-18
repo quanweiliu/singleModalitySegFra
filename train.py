@@ -1,6 +1,9 @@
 # %%
 # basic imports
 import os
+os.environ['CUDA_VISIBLE_DEVICES'] = ','.join(map(str, [0]))
+print('using GPU %s' % ','.join(map(str, [0])))
+
 import json
 import argparse
 import pandas as pd
@@ -43,9 +46,11 @@ def main(opt):
         val_dataset = ISPRS_Dataset(opt, split_type='val', augmentation=False)
 
     train_loader = DataLoader(train_dataset, batch_size=opt.train_batch, shuffle=True, 
-                              num_workers=opt.train_worker, drop_last=True)
+                              num_workers=opt.train_worker, prefetch_factor=4, 
+                              pin_memory=True, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=opt.val_batch, shuffle=False, 
-                            num_workers=opt.val_worker, drop_last=True)
+                            num_workers=opt.val_worker, prefetch_factor=4, 
+                            pin_memory=True, drop_last=True)
     
     # create model
     model = CustomNet(opt, bands=193).to(opt.device)
@@ -111,7 +116,7 @@ def main(opt):
 
     results = trainer.train_model(opt, model, train_loader, val_loader, criterion, optimizer, lr_scheduler)
     results = pd.DataFrame(results)
-    plot_training_results(results, opt, savefig_path=True)
+    plot_training_results(results, opt, savefig_path=False)
 
 
 if __name__ == '__main__':

@@ -39,31 +39,6 @@ norms = {
 }
 
 
-def rgb_to_2D_label(label):
-    """
-    Suply our label masks as input in RGB format. 
-    Replace pixels with specific RGB values ...
-    """
-    Impervious = [255, 255, 255]
-    Building = [0, 0, 255]
-    Vegetation = [0, 255, 255]
-    Tree = [0, 255, 0]
-    Car = [255, 255, 0]
-    Clutter = [255, 0, 0]
-
-    label_seg = np.zeros(label.shape,dtype=np.uint8)
-    label_seg [np.all(label==Impervious,axis=-1)] = 0
-    label_seg [np.all(label==Building,axis=-1)] = 1
-    label_seg [np.all(label==Vegetation,axis=-1)] = 2
-    label_seg [np.all(label==Tree,axis=-1)] = 3
-    label_seg [np.all(label==Car,axis=-1)] = 4
-    label_seg [np.all(label==Clutter,axis=-1)] = 5
-
-    # label_seg = label_seg[:,:,0]  #Just take the first channel, no need for all 3 channels
-    
-    return label_seg
-
-
 class OSTD_Dataset_SAR(BaseDataset):
     """Read images, apply augmentation and preprocessing transformations.
     
@@ -108,7 +83,7 @@ class OSTD_Dataset_SAR(BaseDataset):
 
         # print("image shape", image.shape, "mask shape", mask.shape)
 
-        # image = self.norm(image)
+        image = self.norm(image)
 
         return image.float(), mask, self.img_ids[i]
 
@@ -193,13 +168,11 @@ if __name__ == "__main__":
     val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False, num_workers=0, drop_last=True)
     test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False, num_workers=0)
     
-    for (ti, tm, _), (vi, vm, _), (tei, tem, _) in zip(train_dataset, val_dataset, test_dataset):
+    for image, label, _ in train_dataset:
         # 3, 256, 256 | 256, 256
         # 3, 512, 512 | 512, 512
-        print("ti", ti.shape, "tm", tm.shape, "vi", vi.shape, "vm", vm.shape, "tei", tei.shape, "tem", tem.shape)
-        # print(np.unique(tm), np.unique(vm), np.unique(tem))
-        # print(torch.max(tm), torch.max(vm), torch.max(tem))
-        # print(torch.min(tm), torch.min(vm), torch.min(tem))
+        print("image", image.shape, image.dtype, image.max(), image.min())
+        # print("sar", sar.shape, sar.max(), sar.min())
+        print("label", label.shape, label.dtype, label.max(), label.min())
         break
-
 
